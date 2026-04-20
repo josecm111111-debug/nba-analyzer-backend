@@ -287,10 +287,6 @@
       
       <button type="button" id="swapTeamsBtn" style="width: 100%; margin-top: 10px; background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 10px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.15em; cursor: pointer;">⇄ INVERTIR LOCAL/VISITANTE</button>
       
-      <button type="button" id="todayGamesBtn" style="width: 100%; margin-top: 8px; background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 10px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.15em; cursor: pointer;">📅 VER PARTIDOS DE HOY</button>
-      
-      <div id="todayGamesContainer" style="display: none; margin-top: 12px;"></div>
-      
       <div id="resultContainer"></div>
     </div>
   </div>
@@ -637,105 +633,6 @@
     home.value = away.value;
     away.value = temp;
   });
-  
-  // Botón ver partidos de hoy
-  document.getElementById('todayGamesBtn').addEventListener('click', loadTodayGames);
-  
-  async function loadTodayGames() {
-    const btn = document.getElementById('todayGamesBtn');
-    const container = document.getElementById('todayGamesContainer');
-    
-    btn.disabled = true;
-    btn.textContent = 'CARGANDO...';
-    container.style.display = 'block';
-    container.innerHTML = '<div class="loading"><div class="spinner"></div>Buscando partidos del día...</div>';
-    
-    try {
-      const res = await fetch(`${BACKEND_URL}/games-today`);
-      const data = await res.json();
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Error consultando');
-      }
-      
-      if (data.games.length === 0) {
-        container.innerHTML = `
-          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center;">
-            <div style="font-size: 14px; color: var(--text-dim);">📭 No hay partidos NBA hoy</div>
-            <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">Fecha consultada: ${data.date}</div>
-          </div>`;
-      } else {
-        const gamesHtml = data.games.map(g => {
-          const time = new Date(g.date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-          const isLive = g.status === 'In Play';
-          const isFinished = g.status === 'Finished';
-          
-          let statusBadge = '';
-          if (isLive) {
-            statusBadge = `<span style="background: var(--danger); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700;">EN VIVO</span>`;
-          } else if (isFinished) {
-            statusBadge = `<span style="background: var(--text-dim); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px;">FINAL</span>`;
-          } else {
-            statusBadge = `<span style="background: var(--bg-card); color: var(--accent); border: 1px solid var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700;">${time}</span>`;
-          }
-          
-          const scoreText = (g.homeScore !== null && g.awayScore !== null) 
-            ? `<span style="font-family: 'JetBrains Mono', monospace; color: var(--text-dim); font-size: 11px; margin-left: 4px;">${g.awayScore}-${g.homeScore}</span>` 
-            : '';
-          
-          return `
-            <button 
-              data-home="${g.home}" 
-              data-away="${g.away}"
-              data-status="${g.status}"
-              class="today-game-btn"
-              style="display: block; width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; font-family: inherit; color: var(--text);"
-            >
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span style="font-size: 13px; font-weight: 600;">${g.away} @ ${g.home}</span>
-                ${statusBadge}
-              </div>
-              ${scoreText ? `<div>${scoreText}</div>` : ''}
-            </button>
-          `;
-        }).join('');
-        
-        container.innerHTML = `
-          <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; margin-bottom: 8px;">
-            📅 ${data.total} PARTIDOS · TOCÁ UNO PARA AUTOLLENAR
-          </div>
-          ${gamesHtml}
-          <button id="hideGamesBtn" style="width: 100%; background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.1em; cursor: pointer; margin-top: 4px;">OCULTAR</button>
-        `;
-        
-        // Event listener para cada botón de partido
-        container.querySelectorAll('.today-game-btn').forEach(btn => {
-          btn.addEventListener('click', function() {
-            document.getElementById('home-team').value = this.dataset.home;
-            document.getElementById('away-team').value = this.dataset.away;
-            container.style.display = 'none';
-            // Scroll al input para que vea que se llenó
-            document.getElementById('home-team').scrollIntoView({ behavior: 'smooth', block: 'center' });
-          });
-        });
-        
-        // Botón ocultar
-        document.getElementById('hideGamesBtn').addEventListener('click', function() {
-          container.style.display = 'none';
-        });
-      }
-    } catch(err) {
-      console.error('Error cargando partidos:', err);
-      container.innerHTML = `
-        <div class="error-msg">
-          ⚠️ No pude cargar los partidos: ${err.message}<br>
-          <span style="font-size: 11px; opacity: 0.7;">Si el backend está dormido, esperá ~50s y reintentá</span>
-        </div>`;
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '📅 VER PARTIDOS DE HOY';
-    }
-  }
 
   async function analyzeMatch() {
     const homeTeamInput = document.getElementById('home-team').value.trim();
