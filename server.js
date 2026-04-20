@@ -145,21 +145,64 @@ app.post('/analyze', async (req, res) => {
   }
 });
 
-// Endpoint nuevo: traer partidos del día
+// Endpoint nuevo: traer partidos del día (considerando zona horaria America)
 app.get('/games-today', async (req, res) => {
   try {
-    // Fecha de hoy en formato YYYY-MM-DD
-    const today = new Date().toISOString().split('T')[0];
+    // Buscar partidos en rango de 2 días (ayer, hoy, mañana UTC)
+    // porque los partidos NBA cruzan días en UTC según zona horaria
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     
-    console.log(`Buscando partidos del día: ${today}`);
+    const dates = [
+      yesterday.toISOString().split('T')[0],
+      now.toISOString().split('T')[0],
+      tomorrow.toISOString().split('T')[0]
+    ];
     
-    // Consultar API-NBA con la fecha de hoy
-    const data = await callApi(`/games?date=${today}`);
+    console.log(`Buscando partidos en fechas: ${dates.join(', ')}`);
     
-    const games = (data.response || []).map(g => ({
+    // Consultar API-NBA para cada fecha en paralelo
+    const allResponses = await Promise.all(
+      dates.map(d => callApi(`/games?date=${d}`).catch(() => ({ response: [] })))
+    );
+    
+    // Combinar todos los partidos y deduplicar por ID
+    const allGames = [];
+    const seenIds = new Set();
+    
+    allResponses.forEach(data => {
+      (data.response || []).forEach(g => {
+        if (!seenIds.has(g.id)) {
+          seenIds.add(g.id);
+          allGames.push(g);
+        }
+      });
+    });
+    
+    // Filtrar solo partidos NBA (no WNBA u otros)
+    const nbaGames = allGames.filter(g => {
+      const leagueName = (g.league || '').toLowerCase();
+      return leagueName === 'standard' || leagueName === '' || !g.league;
+    });
+    
+    // Filtrar solo partidos en rango "hoy" desde la perspectiva del usuario
+    // (NBA juega entre 18:00 y 03:00 ET, así que damos margen amplio)
+    const todayStart = new Date();
+    todayStart.setUTCHours(todayStart.getUTCHours() - 24); // margen hacia atrás
+    
+    const tomorrowEnd = new Date();
+    tomorrowEnd.setUTCHours(tomorrowEnd.getUTCHours() + 30); // margen hacia adelante
+    
+    const relevantGames = nbaGames.filter(g => {
+      const gameTime = new Date(g.date.start);
+      return gameTime >= todayStart && gameTime <= tomorrowEnd;
+    });
+    
+    const games = relevantGames.map(g => ({
       id: g.id,
       date: g.date.start,
-      status: g.status.long, // "Scheduled", "In Play", "Finished"
+      status: g.status.long,
       home: g.teams.home.name,
       away: g.teams.visitors.name,
       homeShort: g.teams.home.code,
@@ -168,13 +211,12 @@ app.get('/games-today', async (req, res) => {
       awayScore: g.scores?.visitors?.points || null
     }));
     
-    // Ordenar: primero los próximos a empezar
     games.sort((a, b) => new Date(a.date) - new Date(b.date));
     
-    console.log(`✓ ${games.length} partidos encontrados`);
+    console.log(`✓ ${games.length} partidos NBA relevantes encontrados (de ${allGames.length} totales)`);
     res.json({ 
       success: true, 
-      date: today,
+      date: now.toISOString().split('T')[0],
       total: games.length,
       games 
     });
