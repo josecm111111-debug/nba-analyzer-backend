@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBA Parlay Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0e14; --bg-card: #11161d; --border: #1e2631; --border-accent: #2a3442;
+    --text: #e6edf3; --text-dim: #7d8590; --accent: #00d9a3; --accent-dim: #00a37b;
+    --danger: #ff4d4d; --warning: #ffb454; --blue: #4493f8;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh; padding: 20px 16px 100px;
+    background-image: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0,217,163,0.06), transparent);
+  }
+  .container { max-width: 600px; margin: 0 auto; }
+  .header { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 24px; }
+  .logo { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.3em; color: var(--accent); text-transform: uppercase; margin-bottom: 8px; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+  
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  
+  .section-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.2em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 12px; }
+  
+  .bankroll-display { font-family: 'JetBrains Mono', monospace; font-size: 36px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .goal-progress { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; }
+  .progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 16px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); transition: width 0.5s ease; }
+  
+  .stake-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px dashed var(--border); font-size: 13px; }
+  .stake-label { color: var(--text-dim); }
+  .stake-value { font-family: 'JetBrains Mono', monospace; color: var(--text); font-weight: 500; }
+  
+  .bankroll-input {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 12px; border-radius: 6px; font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; width: 100px; text-align: right;
+  }
+  .bankroll-input:focus { outline: none; border-color: var(--accent); }
+  
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .tab {
+    background: none; border: none; color: var(--text-dim);
+    padding: 12px 14px; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  
+  .panel { display: none; }
+  .panel.active { display: block; }
+  
+  .form-row { margin-bottom: 16px; }
+  .form-label {
+    display: block; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim);
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .form-input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 12px; border-radius: 6px;
+    font-family: 'Space Grotesk', sans-serif; font-size: 14px;
+  }
+  .form-input:focus { outline: none; border-color: var(--accent); }
+  
+  .analyze-btn {
+    width: 100%; background: var(--accent); color: var(--bg);
+    border: none; padding: 16px; border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .analyze-btn:hover { background: var(--accent-dim); }
+  .analyze-btn:active { transform: scale(0.98); }
+  .analyze-btn:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; }
+  
+  .loading {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; padding: 20px; color: var(--text-dim); font-size: 13px;
+  }
+  .spinner {
+    width: 14px; height: 14px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  .verdict { text-align: center; padding: 20px; border-radius: 12px; margin-bottom: 16px; }
+  .verdict.green { background: rgba(0,217,163,0.1); border: 1px solid var(--accent); }
+  .verdict.yellow { background: rgba(255,180,84,0.1); border: 1px solid var(--warning); }
+  .verdict.red { background: rgba(255,77,77,0.1); border: 1px solid var(--danger); }
+  
+  .verdict-pick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 8px; }
+  .verdict.green .verdict-pick { color: var(--accent); }
+  .verdict.yellow .verdict-pick { color: var(--warning); }
+  .verdict.red .verdict-pick { color: var(--danger); }
+  
+  .verdict-line { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
+  .verdict-conf { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+  
+  .confidence-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+  .confidence-fill { height: 100%; transition: width 0.8s ease; }
+  
+  .analysis-section { margin-top: 16px; }
+  .analysis-title { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.2em; color: var(--text-dim); text-transform: uppercase; margin: 16px 0 8px; }
+  .analysis-text { font-size: 13px; line-height: 1.6; color: var(--text); margin-bottom: 8px; }
+  
+  .factor-row {
+    display: flex; align-items: start; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .factor-row:last-child { border-bottom: none; }
+  .factor-icon {
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .factor-icon.pass { background: rgba(0,217,163,0.15); color: var(--accent); }
+  .factor-icon.fail { background: rgba(255,77,77,0.15); color: var(--danger); }
+  .factor-icon.warn { background: rgba(255,180,84,0.15); color: var(--warning); }
+  .factor-text { flex: 1; }
+  
+  .history-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .history-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .history-teams { font-weight: 600; font-size: 14px; }
+  .history-badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.1em; }
+  .history-badge.win { background: rgba(0,217,163,0.15); color: var(--accent); }
+  .history-badge.lose { background: rgba(255,77,77,0.15); color: var(--danger); }
+  .history-detail { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+  .history-result { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+  
+  .mini-btn { background: none; border: 1px solid; padding: 4px 10px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; cursor: pointer; margin-left: 4px; }
+  .mini-btn.win { border-color: var(--accent); color: var(--accent); }
+  .mini-btn.lose { border-color: var(--danger); color: var(--danger); }
+  
+  .delete-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .delete-btn:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(255,77,77,0.1);
+  }
+  
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: 13px; }
+  
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .stat-box { background: var(--bg); border: 1px solid var(--border); padding: 14px 10px; border-radius: 8px; text-align: center; }
+  .stat-value { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+  
+  .reset-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 8px 12px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; }
+  .reset-btn:hover { border-color: var(--danger); color: var(--danger); }
+  
+  .lesson-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px dashed var(--border); font-size: 13px; line-height: 1.5; }
+  .lesson-item:last-child { border-bottom: none; }
+  .lesson-num { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+  .lesson-text { flex: 1; color: var(--text); }
+  .lesson-meta { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+  
+  .error-msg { background: rgba(255,77,77,0.1); border: 1px solid var(--danger); color: var(--danger); padding: 12px; border-radius: 8px; font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="logo">NBA · BETTING · ANALYZER</div>
+    <h1>Parlay Command</h1>
+    <div class="subtitle">Kelly · API-NBA · Diario · Patrones · IA</div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Bankroll Actual</div>
+    <div class="bankroll-display" id="bankrollDisplay">$0.00</div>
+    <div class="goal-progress" id="goalProgress">Meta: $300</div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+    </div>
+    <div class="stake-row">
+      <span class="stake-label">Actualizar bankroll</span>
+      <input type="number" id="bankrollInput" class="bankroll-input" placeholder="0.00" step="0.01">
+    </div>
+    <div class="stake-row">
+      <span class="stake-label">Stake base (fijo)</span>
+      <span class="stake-value" id="recommendedStake">$0</span>
+    </div>
+    <div class="stake-row" id="kellyStakeRow" style="display: none;">
+      <span class="stake-label">Stake Kelly (último pick)</span>
+      <span class="stake-value" id="kellyStake" style="color: var(--accent); font-weight: 700;">$0</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-panel="analyzer">Analizar</button>
+    <button class="tab" data-panel="lessons">Lecciones</button>
+    <button class="tab" data-panel="history">Record</button>
+  </div>
+
+  <div class="panel active" id="analyzer">
+    <div class="card">
+      <div class="section-label">Analizar Partido</div>
+      
+      <div class="form-row">
+        <label class="form-label">Equipo Local</label>
+        <input type="text" class="form-input" id="home-team" placeholder="Tocá para ver lista..." list="nba-teams-list" autocomplete="off">
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">Equipo Visitante</label>
+        <input type="text" class="form-input" id="away-team" placeholder="Tocá para ver lista..." list="nba-teams-list" autocomplete="off">
+      </div>
+      
+      <datalist id="nba-teams-list">
+        <option value="Atlanta Hawks">
+        <option value="Boston Celtics">
+        <option value="Brooklyn Nets">
+        <option value="Charlotte Hornets">
+        <option value="Chicago Bulls">
+        <option value="Cleveland Cavaliers">
+        <option value="Dallas Mavericks">
+        <option value="Denver Nuggets">
+        <option value="Detroit Pistons">
+        <option value="Golden State Warriors">
+        <option value="Houston Rockets">
+        <option value="Indiana Pacers">
+        <option value="LA Clippers">
+        <option value="Los Angeles Lakers">
+        <option value="Memphis Grizzlies">
+        <option value="Miami Heat">
+        <option value="Milwaukee Bucks">
+        <option value="Minnesota Timberwolves">
+        <option value="New Orleans Pelicans">
+        <option value="New York Knicks">
+        <option value="Oklahoma City Thunder">
+        <option value="Orlando Magic">
+        <option value="Philadelphia 76ers">
+        <option value="Phoenix Suns">
+        <option value="Portland Trail Blazers">
+        <option value="Sacramento Kings">
+        <option value="San Antonio Spurs">
+        <option value="Toronto Raptors">
+        <option value="Utah Jazz">
+        <option value="Washington Wizards">
+      </datalist>
+
+      <div class="form-row">
+        <label class="form-label">Rango de Líneas Disponibles en Rainbet (opcional)</label>
+        <div style="display: flex; gap: 8px; align-items: stretch;">
+          <div style="flex: 1;">
+            <div style="font-size: 9px; color: var(--text-dim); margin-bottom: 4px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em;">DESDE</div>
+            <input type="number" class="form-input" id="line-min" placeholder="216.5" step="0.5" inputmode="decimal">
+          </div>
+          <div style="display: flex; align-items: center; padding-top: 16px;">
+            <span style="color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 16px;">—</span>
+          </div>
+          <div style="flex: 1;">
+            <div style="font-size: 9px; color: var(--text-dim); margin-bottom: 4px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em;">HASTA</div>
+            <input type="number" class="form-input" id="line-max" placeholder="227.5" step="0.5" inputmode="decimal">
+          </div>
+        </div>
+        <div style="font-size: 11px; color: var(--text-dim); margin-top: 8px; font-family: 'JetBrains Mono', monospace;">
+          ⓘ Claude elegirá la mejor línea dentro de tu rango
+        </div>
+      </div>
+
+      <button class="analyze-btn" id="analyzeBtn">Analizar Over / Under</button>
+      
+      <button type="button" id="swapTeamsBtn" style="width: 100%; margin-top: 10px; background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 10px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.15em; cursor: pointer;">⇄ INVERTIR LOCAL/VISITANTE</button>
+      
+      <button type="button" id="todayGamesBtn" style="width: 100%; margin-top: 8px; background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 10px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.15em; cursor: pointer;">📅 VER PARTIDOS DE HOY</button>
+      
+      <div id="todayGamesContainer" style="display: none; margin-top: 12px;"></div>
+      
+      <div id="resultContainer"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="lessons">
+    <div class="card">
+      <div class="section-label">Lecciones Activas (se actualizan con cada resultado)</div>
+      <div id="lessonsList"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="history">
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-value" id="totalPicks">0</div>
+        <div class="stat-label">Picks</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="wonPicks">0</div>
+        <div class="stat-label">Ganados</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="winRate">0%</div>
+        <div class="stat-label">Win Rate</div>
+      </div>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;">
+      <div class="stat-box" style="padding: 12px;">
+        <div id="last10Rate" style="font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono', monospace;">—</div>
+        <div style="font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; margin-top: 4px;">ÚLTIMOS 10</div>
+      </div>
+      <div class="stat-box" style="padding: 12px;">
+        <div id="currentStreak" style="font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono', monospace;">—</div>
+        <div style="font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; margin-top: 4px;">RACHA</div>
+      </div>
+    </div>
+    
+    <div id="patternsBox"></div>
+    <div id="historyList"></div>
+    <div style="text-align: center; margin-top: 16px;">
+      <button class="reset-btn" id="resetBtn">Reset Historial</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ===== CONFIGURACIÓN BACKEND =====
+  const BACKEND_URL = 'https://nba-analyzer-backend.onrender.com';
+  
+  // Fetch al backend propio (sin CORS issues)
+  // Caché de respuestas API (5 min TTL) — evita gastar requests del plan free
+  const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+  
+  function getCachedData(key) {
+    try {
+      const raw = localStorage.getItem('cache_' + key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (Date.now() - parsed.ts > CACHE_TTL_MS) {
+        localStorage.removeItem('cache_' + key);
+        return null;
+      }
+      console.log('✓ Cache hit:', key);
+      return parsed.data;
+    } catch(e) { return null; }
+  }
+  
+  function setCachedData(key, data) {
+    try {
+      localStorage.setItem('cache_' + key, JSON.stringify({ ts: Date.now(), data }));
+    } catch(e) {
+      // Si localStorage está lleno, limpiar caché viejo y reintentar
+      if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        console.warn('Cache lleno, limpiando 30% más viejo...');
+        clearOldCache();
+        try {
+          localStorage.setItem('cache_' + key, JSON.stringify({ ts: Date.now(), data }));
+        } catch(e2) {
+          console.error('Cache aún lleno después de limpiar:', e2);
+        }
+      } else {
+        console.warn('Error guardando caché:', e);
+      }
+    }
+  }
+  
+  // Limpia el 30% más viejo del caché cuando localStorage está lleno
+  function clearOldCache() {
+    try {
+      const cacheKeys = Object.keys(localStorage)
+        .filter(k => k.startsWith('cache_'));
+      
+      if (cacheKeys.length === 0) return;
+      
+      const items = cacheKeys
+        .map(k => {
+          try {
+            const parsed = JSON.parse(localStorage.getItem(k));
+            return { key: k, ts: parsed.ts || 0 };
+          } catch(e) {
+            return { key: k, ts: 0 }; // si está corrupto, prioridad eliminar
+          }
+        })
+        .sort((a, b) => a.ts - b.ts); // más viejos primero
+      
+      // Eliminar el 30% más viejo
+      const toDelete = items.slice(0, Math.max(1, Math.floor(items.length * 0.3)));
+      toDelete.forEach(({ key }) => localStorage.removeItem(key));
+      
+      console.log(`Limpiados ${toDelete.length} items viejos del caché`);
+    } catch(e) {
+      console.error('Error limpiando caché:', e);
+    }
+  }
+  
+  async function fetchFromBackend(homeTeam, awayTeam) {
+    // Revisar caché primero
+    const cacheKey = `${homeTeam}_${awayTeam}`.replace(/\s+/g, '_').toLowerCase();
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+      console.log('Usando datos cacheados (< 5 min)');
+      return cached;
+    }
+    
+    try {
+      console.log('Llamando al backend:', BACKEND_URL);
+      
+      // Timeout de 60 segundos (Render free puede tardar al despertar)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout 60s - el backend puede estar dormido, probá de nuevo')), 60000)
+      );
+      
+      const fetchPromise = fetch(`${BACKEND_URL}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ homeTeam, awayTeam })
+      });
+      
+      const res = await Promise.race([fetchPromise, timeoutPromise]);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      
+      const data = await res.json();
+      console.log('Respuesta backend:', data);
+      
+      // Guardar en caché si fue exitoso
+      if (data.success) {
+        setCachedData(cacheKey, data);
+      }
+      
+      return data;
+    } catch (err) {
+      console.error('Error backend:', err);
+      
+      // Si falló, intentar ver si el backend está vivo (sin gastar análisis)
+      let friendlyError = err.message;
+      try {
+        const healthRes = await fetch(`${BACKEND_URL}/`, { method: 'GET' });
+        if (!healthRes.ok) {
+          friendlyError = 'Backend offline. Esperá 1-2 min e intentá de nuevo.';
+        }
+      } catch(e) {
+        friendlyError = 'Backend dormido o caído. Esperá ~50s y reintentá.';
+      }
+      
+      return { success: false, error: friendlyError };
+    }
+  }
+  
+  // Estado
+  let bankroll = 0;
+  let history = [];
+  let lessons = [
+    { id: 1, text: "Solo NBA. Nunca mezclar con fútbol u otro deporte.", weight: 30, source: "P3: parlay perdido por leg de fútbol" },
+    { id: 2, text: "Nunca Under con línea sobre 240 en equipos sin motivación.", weight: 25, source: "P6: NOP/UTA Under 248.5 terminó 293 pts" },
+    { id: 3, text: "Nunca Under cuando una estrella regresa de lesión.", weight: 25, source: "Cade Cunningham regresó y DET marcó 137" },
+    { id: 4, text: "Margen mínimo de 15 pts entre proyección y línea.", weight: 15, source: "Picks con margen ajustado fallan más" },
+    { id: 5, text: "Equipos ya clasificados rotarán jugadores (favorece Under).", weight: 10, source: "Thunder con #1 asegurado" },
+    { id: 6, text: "Ambos equipos motivados (playoff) = Over probable.", weight: 10, source: "Partidos con ambos luchando" },
+    { id: 7, text: "Equipos eliminados y sin estrellas (tanquean) = ritmo impredecible.", weight: 15, source: "Equipos eliminados" },
+    { id: 8, text: "Máximo 2 picks por parlay hasta $150 de bankroll.", weight: 0, source: "Gestión de riesgo" }
+  ];
+
+  // Storage - usa localStorage del navegador (siempre funciona, guarda en tu dispositivo)
+  const STORAGE_PREFIX = 'nba_analyzer_';
+  
+  function loadData() {
+    try {
+      const b = localStorage.getItem(STORAGE_PREFIX + 'bankroll');
+      if (b) bankroll = parseFloat(b) || 0;
+    } catch(e) { console.warn('Error cargando bankroll:', e); }
+    
+    try {
+      const h = localStorage.getItem(STORAGE_PREFIX + 'history');
+      if (h) history = JSON.parse(h) || [];
+    } catch(e) { console.warn('Error cargando historial:', e); }
+    
+    try {
+      const l = localStorage.getItem(STORAGE_PREFIX + 'lessons');
+      if (l) {
+        const parsed = JSON.parse(l);
+        if (Array.isArray(parsed) && parsed.length > 0) lessons = parsed;
+      }
+    } catch(e) { console.warn('Error cargando lecciones:', e); }
+    
+    updateBankroll();
+    renderHistory();
+    renderLessons();
+  }
+
+  function save(key, value) {
+    try {
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+      localStorage.setItem(STORAGE_PREFIX + key, stringValue);
+      return true;
+    } catch(e) {
+      console.error('save', key, 'Error:', e.message || e);
+      return false;
+    }
+  }
+
+  // Bankroll
+  document.getElementById('bankrollInput').addEventListener('change', (e) => {
+    bankroll = parseFloat(e.target.value) || 0;
+    updateBankroll();
+    save('bankroll', bankroll.toString());
+    e.target.value = '';
+  });
+
+  function updateBankroll() {
+    document.getElementById('bankrollDisplay').textContent = '$' + bankroll.toFixed(2);
+    const progress = Math.min((bankroll / 300) * 100, 100);
+    document.getElementById('progressFill').style.width = progress + '%';
+    document.getElementById('goalProgress').textContent = `Meta: $300 · Progreso: ${progress.toFixed(1)}%`;
+    
+    let stake = 10;
+    if (bankroll >= 200) stake = 25;
+    else if (bankroll >= 100) stake = 15;
+    document.getElementById('recommendedStake').textContent = '$' + stake.toFixed(2);
+  }
+  
+  // ===== CRITERIO DE KELLY FRACCIONAL (25%) =====
+  // Kelly = (p*b - q) / b
+  // p = probabilidad de ganar (confianza/100)
+  // q = probabilidad de perder (1-p)
+  // b = cuota decimal - 1 (ganancia neta por unidad apostada)
+  // Usamos Kelly al 25% (conservador) para reducir varianza
+  function calculateKelly(confidence, decimalOdds = 1.91) {
+    const p = confidence / 100;
+    const q = 1 - p;
+    const b = decimalOdds - 1;
+    
+    // Kelly puro
+    const kellyFull = (p * b - q) / b;
+    
+    // Kelly fraccional 25% (más seguro)
+    const kellyFractional = kellyFull * 0.25;
+    
+    // Cap entre 0% y 5% del bankroll (límite de seguridad)
+    const stakePct = Math.max(0, Math.min(kellyFractional, 0.05));
+    
+    return {
+      pct: stakePct * 100,
+      stake: bankroll * stakePct,
+      shouldBet: stakePct > 0.005, // Solo recomienda si es >0.5%
+      edge: ((p * decimalOdds) - 1) * 100 // % de valor esperado
+    };
+  }
+  
+  function updateKellyDisplay(confidence) {
+    if (!confidence || bankroll <= 0) {
+      document.getElementById('kellyStakeRow').style.display = 'none';
+      return;
+    }
+    
+    const kelly = calculateKelly(confidence);
+    const row = document.getElementById('kellyStakeRow');
+    const value = document.getElementById('kellyStake');
+    
+    row.style.display = 'flex';
+    
+    if (kelly.shouldBet) {
+      value.textContent = `$${kelly.stake.toFixed(2)} (${kelly.pct.toFixed(1)}%)`;
+      value.style.color = 'var(--accent)';
+    } else {
+      value.textContent = 'NO APOSTAR';
+      value.style.color = 'var(--danger)';
+    }
+  }
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.panel).classList.add('active');
+    });
+  });
+
+  // ========== ANÁLISIS CON IA (Claude conoce NBA profundamente) ==========
+  
+  // Lista de equipos NBA para validación
+  const NBA_TEAMS = [
+    'Atlanta Hawks', 'Boston Celtics', 'Brooklyn Nets', 'Charlotte Hornets',
+    'Chicago Bulls', 'Cleveland Cavaliers', 'Dallas Mavericks', 'Denver Nuggets',
+    'Detroit Pistons', 'Golden State Warriors', 'Houston Rockets', 'Indiana Pacers',
+    'LA Clippers', 'Los Angeles Lakers', 'Memphis Grizzlies', 'Miami Heat',
+    'Milwaukee Bucks', 'Minnesota Timberwolves', 'New Orleans Pelicans', 'New York Knicks',
+    'Oklahoma City Thunder', 'Orlando Magic', 'Philadelphia 76ers', 'Phoenix Suns',
+    'Portland Trail Blazers', 'Sacramento Kings', 'San Antonio Spurs', 'Toronto Raptors',
+    'Utah Jazz', 'Washington Wizards'
+  ];
+  
+  function findTeamName(query) {
+    const q = query.toLowerCase().trim();
+    // Match exacto
+    let match = NBA_TEAMS.find(t => t.toLowerCase() === q);
+    if (match) return match;
+    // Match por contiene
+    match = NBA_TEAMS.find(t => t.toLowerCase().includes(q));
+    if (match) return match;
+    // Match por palabras
+    const words = q.split(/\s+/);
+    match = NBA_TEAMS.find(t => {
+      const teamName = t.toLowerCase();
+      return words.some(w => w.length > 3 && teamName.includes(w));
+    });
+    return match;
+  }
+
+  // ANÁLISIS principal
+  document.getElementById('analyzeBtn').addEventListener('click', analyzeMatch);
+  
+  // Botón invertir local/visitante
+  document.getElementById('swapTeamsBtn').addEventListener('click', function() {
+    const home = document.getElementById('home-team');
+    const away = document.getElementById('away-team');
+    const temp = home.value;
+    home.value = away.value;
+    away.value = temp;
+  });
+  
+  // Botón ver partidos de hoy
+  document.getElementById('todayGamesBtn').addEventListener('click', loadTodayGames);
+  
+  async function loadTodayGames() {
+    const btn = document.getElementById('todayGamesBtn');
+    const container = document.getElementById('todayGamesContainer');
+    
+    btn.disabled = true;
+    btn.textContent = 'CARGANDO...';
+    container.style.display = 'block';
+    container.innerHTML = '<div class="loading"><div class="spinner"></div>Buscando partidos del día...</div>';
+    
+    try {
+      const res = await fetch(`${BACKEND_URL}/games-today`);
+      const data = await res.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Error consultando');
+      }
+      
+      if (data.games.length === 0) {
+        container.innerHTML = `
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center;">
+            <div style="font-size: 14px; color: var(--text-dim);">📭 No hay partidos NBA hoy</div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">Fecha consultada: ${data.date}</div>
+          </div>`;
+      } else {
+        const gamesHtml = data.games.map(g => {
+          const time = new Date(g.date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+          const isLive = g.status === 'In Play';
+          const isFinished = g.status === 'Finished';
+          
+          let statusBadge = '';
+          if (isLive) {
+            statusBadge = `<span style="background: var(--danger); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700;">EN VIVO</span>`;
+          } else if (isFinished) {
+            statusBadge = `<span style="background: var(--text-dim); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px;">FINAL</span>`;
+          } else {
+            statusBadge = `<span style="background: var(--bg-card); color: var(--accent); border: 1px solid var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700;">${time}</span>`;
+          }
+          
+          const scoreText = (g.homeScore !== null && g.awayScore !== null) 
+            ? `<span style="font-family: 'JetBrains Mono', monospace; color: var(--text-dim); font-size: 11px; margin-left: 4px;">${g.awayScore}-${g.homeScore}</span>` 
+            : '';
+          
+          return `
+            <button 
+              data-home="${g.home}" 
+              data-away="${g.away}"
+              data-status="${g.status}"
+              class="today-game-btn"
+              style="display: block; width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; font-family: inherit; color: var(--text);"
+            >
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 13px; font-weight: 600;">${g.away} @ ${g.home}</span>
+                ${statusBadge}
+              </div>
+              ${scoreText ? `<div>${scoreText}</div>` : ''}
+            </button>
+          `;
+        }).join('');
+        
+        container.innerHTML = `
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; margin-bottom: 8px;">
+            📅 ${data.total} PARTIDOS · TOCÁ UNO PARA AUTOLLENAR
+          </div>
+          ${gamesHtml}
+          <button id="hideGamesBtn" style="width: 100%; background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.1em; cursor: pointer; margin-top: 4px;">OCULTAR</button>
+        `;
+        
+        // Event listener para cada botón de partido
+        container.querySelectorAll('.today-game-btn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            document.getElementById('home-team').value = this.dataset.home;
+            document.getElementById('away-team').value = this.dataset.away;
+            container.style.display = 'none';
+            // Scroll al input para que vea que se llenó
+            document.getElementById('home-team').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+        });
+        
+        // Botón ocultar
+        document.getElementById('hideGamesBtn').addEventListener('click', function() {
+          container.style.display = 'none';
+        });
+      }
+    } catch(err) {
+      console.error('Error cargando partidos:', err);
+      container.innerHTML = `
+        <div class="error-msg">
+          ⚠️ No pude cargar los partidos: ${err.message}<br>
+          <span style="font-size: 11px; opacity: 0.7;">Si el backend está dormido, esperá ~50s y reintentá</span>
+        </div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📅 VER PARTIDOS DE HOY';
+    }
+  }
+
+  async function analyzeMatch() {
+    const homeTeamInput = document.getElementById('home-team').value.trim();
+    const awayTeamInput = document.getElementById('away-team').value.trim();
+    const lineMin = document.getElementById('line-min').value.trim();
+    const lineMax = document.getElementById('line-max').value.trim();
+    const btn = document.getElementById('analyzeBtn');
+    const resultBox = document.getElementById('resultContainer');
+
+    // Validación 1: ambos equipos
+    if (!homeTeamInput || !awayTeamInput) {
+      resultBox.innerHTML = '<div class="error-msg">⚠️ Ingresá ambos equipos</div>';
+      return;
+    }
+
+    // Validación 2: equipos diferentes
+    if (homeTeamInput.toLowerCase() === awayTeamInput.toLowerCase()) {
+      resultBox.innerHTML = '<div class="error-msg">⚠️ Los equipos no pueden ser iguales</div>';
+      return;
+    }
+
+    // Normalizar nombres
+    const homeTeam = findTeamName(homeTeamInput) || homeTeamInput;
+    const awayTeam = findTeamName(awayTeamInput) || awayTeamInput;
+
+    // Validación 3: equipos válidos NBA
+    const homeValid = NBA_TEAMS.find(t => t.toLowerCase() === homeTeam.toLowerCase());
+    const awayValid = NBA_TEAMS.find(t => t.toLowerCase() === awayTeam.toLowerCase());
+    
+    if (!homeValid || !awayValid) {
+      const invalidTeam = !homeValid ? homeTeamInput : awayTeamInput;
+      resultBox.innerHTML = `
+        <div class="error-msg">
+          ⚠️ "${invalidTeam}" no es un equipo NBA válido.<br>
+          <span style="font-size: 11px; opacity: 0.7;">Tocá el campo y seleccioná de la lista.</span>
+        </div>`;
+      return;
+    }
+
+    // Validación 4: rango de líneas válido
+    if (lineMin && lineMax) {
+      const min = parseFloat(lineMin);
+      const max = parseFloat(lineMax);
+      
+      if (isNaN(min) || isNaN(max)) {
+        resultBox.innerHTML = '<div class="error-msg">⚠️ Las líneas deben ser números</div>';
+        return;
+      }
+      
+      if (min >= max) {
+        resultBox.innerHTML = '<div class="error-msg">⚠️ La línea DESDE debe ser menor que HASTA</div>';
+        return;
+      }
+      
+      if (min < 150 || max > 280) {
+        resultBox.innerHTML = '<div class="error-msg">⚠️ Las líneas NBA típicas están entre 180-260</div>';
+        return;
+      }
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Consultando backend...';
+    resultBox.innerHTML = `
+      <div class="loading">
+        <div class="spinner"></div>
+        <div>Obteniendo datos reales de API-NBA</div>
+        <div id="elapsedTime" style="font-size: 12px; color: var(--accent); margin-top: 8px; font-family: 'JetBrains Mono', monospace;">0s</div>
+        <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+          Si el backend estaba dormido puede tardar ~50s la primera vez
+        </div>
+      </div>`;
+    
+    // Contador de segundos visible
+    const startTime = Date.now();
+    const timerInterval = setInterval(() => {
+      const el = document.getElementById('elapsedTime');
+      if (el) {
+        const secs = Math.floor((Date.now() - startTime) / 1000);
+        el.textContent = `${secs}s`;
+      }
+    }, 500);
+
+    // ===== PASO 1: LLAMAR AL BACKEND (que llama a API-NBA) =====
+    const apiData = await fetchFromBackend(homeTeam, awayTeam);
+    
+    clearInterval(timerInterval);
+    
+    if (apiData.success) {
+      console.log('✓ Datos obtenidos del backend');
+    } else {
+      console.warn('Backend falló:', apiData.error);
+    }
+
+    resultBox.innerHTML = '<div class="loading"><div class="spinner"></div>Claude analizando con datos reales...</div>';
+
+    // Lecciones ordenadas por peso
+    const sortedLessons = [...lessons].sort((a, b) => b.weight - a.weight);
+    const lessonsText = sortedLessons.map((l, i) => `${i+1}. ${l.text} (peso: ${l.weight})`).join('\n');
+    
+    const recentHistory = history.slice(0, 10).map(h => 
+      `${h.matchup}: ${h.pick} línea ${h.line} → ${h.result || 'pendiente'}`
+    ).join('\n');
+
+    let lineInfo = 'No hay rango de líneas especificado';
+    if (lineMin && lineMax) {
+      lineInfo = `RANGO DE LÍNEAS DISPONIBLES EN RAINBET: ${lineMin} a ${lineMax} (saltos de 0.5)
+DEBES elegir la mejor línea DENTRO de este rango.`;
+    }
+
+    // Construir sección de datos reales para el prompt
+    let realDataSection = '';
+    if (apiData.success) {
+      const h = apiData.home;
+      const a = apiData.away;
+      const h2hText = apiData.h2h.length > 0 
+        ? apiData.h2h.map(g => `  ${g.home} ${g.homeScore}-${g.awayScore} ${g.away} (total: ${g.total})`).join('\n')
+        : '  Sin H2H en esta temporada';
+      
+      realDataSection = `
+📊 DATOS REALES DE API-NBA (temporada 2025-2026):
+
+${h.name}:
+- Récord: ${h.record}
+- Posición en ${h.conference}: #${h.conferenceRank}
+- Puntos por juego: ${h.pointsForPerGame || 'N/A'}
+- FG%: ${h.fieldGoalPct || 'N/A'}%
+- Juegos jugados: ${h.games || 'N/A'}
+
+${a.name}:
+- Récord: ${a.record}
+- Posición en ${a.conference}: #${a.conferenceRank}
+- Puntos por juego: ${a.pointsForPerGame || 'N/A'}
+- FG%: ${a.fieldGoalPct || 'N/A'}%
+- Juegos jugados: ${a.games || 'N/A'}
+
+H2H últimos partidos esta temporada:
+${h2hText}
+`;
+    } else {
+      realDataSection = '\n⚠️ No se pudieron obtener datos de API-NBA. Usa tu conocimiento.\n';
+    }
+
+    const prompt = `RESPONDE SOLO CON JSON VÁLIDO. NO ESCRIBAS NADA ANTES NI DESPUÉS DEL JSON.
+
+Eres un experto analista de apuestas NBA. Hoy es ${new Date().toLocaleDateString('es-ES')}.
+
+PARTIDO: ${homeTeam} (local) vs ${awayTeam} (visitante)
+${lineInfo}
+${realDataSection}
+
+Analiza considerando: los DATOS REALES arriba como base, tendencia últimos juegos, pace, lesiones conocidas, estrellas regresando (CRÍTICO para Unders), back-to-back, motivación (playoffs/play-in/eliminados/ya clasificados rotarán), H2H reciente.
+
+REGLAS APRENDIDAS:
+${lessonsText}
+
+HISTORIAL RECIENTE:
+${recentHistory || 'Sin historial'}
+
+INSTRUCCIONES:
+${lineMin && lineMax ? `- Línea sugerida DEBE estar entre ${lineMin} y ${lineMax}` : '- Sugiere línea ideal'}
+- Si Over: línea más baja del rango
+- Si Under: línea más alta del rango
+
+TU RESPUESTA DEBE EMPEZAR CON { Y TERMINAR CON }. NADA MÁS.
+- NO uses comillas dobles dentro de valores de texto (usa apóstrofes)
+- NO uses saltos de línea dentro de strings
+- Máximo 3 key_factors
+
+Ejemplo del formato exacto:
+{"pick":"UNDER","projected_total":215,"suggested_line":220.5,"confidence":78,"verdict":"JUGAR","key_factors":[{"status":"pass","text":"Ambos equipos eliminados sin motivación"},{"status":"pass","text":"Promedios defensivos bajos"},{"status":"warn","text":"Línea ajustada"}],"analysis":"Texto corto aquí sin comillas dobles"}`;
+
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+
+      const data = await response.json();
+      
+      // Verificar si la API devolvió un error
+      if (data.error) {
+        throw new Error('API error: ' + (data.error.message || JSON.stringify(data.error)));
+      }
+      
+      if (!data.content || !Array.isArray(data.content)) {
+        console.error('Respuesta inesperada:', data);
+        throw new Error('Formato de respuesta inválido');
+      }
+      
+      // Extraer todo el texto de la respuesta
+      const textBlocks = data.content.filter(b => b.type === "text").map(b => b.text).join('');
+      
+      if (!textBlocks) {
+        console.error('Sin texto en respuesta:', data);
+        throw new Error('Respuesta vacía de Claude');
+      }
+      
+      console.log('Respuesta cruda:', textBlocks);
+      
+      // Limpieza profunda del texto
+      let cleaned = textBlocks
+        .replace(/```json/gi, '')
+        .replace(/```/g, '')
+        .replace(/]*>/gi, '')
+        .replace(/<\/antml:cite>/gi, '')
+        .replace(/<[^>]+>/g, '')
+        .trim();
+      
+      // Buscar JSON (primera { hasta última })
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        // Mostrar qué respondió Claude para debugging
+        console.error('No JSON encontrado. Respuesta:', textBlocks.substring(0, 500));
+        resultBox.innerHTML = `
+          <div class="error-msg">
+            <strong>Claude no devolvió JSON válido.</strong><br>
+            Primeros 200 caracteres de la respuesta:<br>
+            <code style="display:block;margin-top:8px;padding:8px;background:var(--bg);border-radius:4px;font-size:11px;word-break:break-all;">${textBlocks.substring(0, 200)}...</code>
+            <br>Intentá de nuevo.
+          </div>`;
+        btn.disabled = false;
+        btn.textContent = 'Analizar Over / Under';
+        return;
+      }
+      
+      let jsonStr = cleaned.substring(firstBrace, lastBrace + 1);
+      
+      // Reparaciones de JSON comunes
+      jsonStr = jsonStr
+        .replace(/[\u201C\u201D]/g, '"')      // comillas tipográficas
+        .replace(/[\u2018\u2019]/g, "'")      // apóstrofes tipográficos
+        .replace(/,(\s*[}\]])/g, '$1')        // comas colgantes
+        .replace(/\n/g, ' ')                   // saltos de línea
+        .replace(/\s+/g, ' ');                 // espacios múltiples
+      
+      let result;
+      try {
+        result = JSON.parse(jsonStr);
+      } catch (parseErr) {
+        console.error('JSON parse falló:', parseErr.message);
+        console.error('JSON intento:', jsonStr);
+        resultBox.innerHTML = `
+          <div class="error-msg">
+            <strong>Error parseando respuesta.</strong><br>
+            Error: ${parseErr.message}<br>
+            <code style="display:block;margin-top:8px;padding:8px;background:var(--bg);border-radius:4px;font-size:11px;word-break:break-all;">${jsonStr.substring(0, 200)}...</code>
+            <br>Intentá de nuevo.
+          </div>`;
+        btn.disabled = false;
+        btn.textContent = 'Analizar Over / Under';
+        return;
+      }
+      
+      // Validar campos requeridos con fallbacks
+      if (!result.pick || typeof result.confidence === 'undefined' || !result.key_factors) {
+        console.error('Campos faltantes:', result);
+        throw new Error('Respuesta incompleta. Intentá de nuevo.');
+      }
+      
+      // Asegurar que todos los campos tengan valores
+      if (!result.verdict) {
+        result.verdict = result.confidence >= 75 ? 'JUGAR' : result.confidence >= 60 ? 'SOLO SINGLE' : 'NO JUGAR';
+      }
+      if (!result.projected_total) result.projected_total = result.suggested_line || 220;
+      if (!result.suggested_line) result.suggested_line = result.projected_total || 220;
+      if (!result.analysis) result.analysis = 'Sin análisis detallado.';
+      
+      renderResult(homeTeam, awayTeam, lineMin, lineMax, result, apiData);
+      
+      // Guardar en historial
+      const item = {
+        matchup: `${homeTeam} vs ${awayTeam}`,
+        pick: result.pick,
+        line: result.suggested_line,
+        line_range: lineMin && lineMax ? `${lineMin}-${lineMax}` : null,
+        projected: result.projected_total,
+        confidence: result.confidence,
+        verdict: result.verdict,
+        factors: result.key_factors,
+        date: new Date().toISOString(),
+        result: null
+      };
+      history.unshift(item);
+      
+      // Cap historial a 200 picks (los más viejos se borran)
+      if (history.length > 200) {
+        history = history.slice(0, 200);
+      }
+      
+      save('history', history);
+      renderHistory();
+      
+    } catch (err) {
+      resultBox.innerHTML = `<div class="error-msg">Error analizando: ${err.message}. Intentá de nuevo.</div>`;
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Analizar Over / Under';
+    }
+  }
+
+  function renderResult(home, away, lineMin, lineMax, r, apiData) {
+    const cls = r.confidence >= 75 ? 'green' : r.confidence >= 60 ? 'yellow' : 'red';
+    const color = cls === 'green' ? 'var(--accent)' : cls === 'yellow' ? 'var(--warning)' : 'var(--danger)';
+    const finalLine = r.suggested_line;
+    const rangeInfo = lineMin && lineMax ? `Rango dado: ${lineMin}–${lineMax}` : '';
+
+    // Sección de datos reales de API-NBA
+    let apiSection = '';
+    if (apiData && apiData.success) {
+      const h = apiData.home;
+      const a = apiData.away;
+      apiSection = `
+        <div class="analysis-title">📊 Datos Reales (API-NBA)</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; margin-bottom: 8px;">${h.name.toUpperCase()}</div>
+            <div style="font-size: 13px; line-height: 1.8;">
+              <div>Récord: <strong>${h.record}</strong></div>
+              <div>PPG: <strong>${h.pointsForPerGame || 'N/A'}</strong></div>
+              <div>FG%: <strong>${h.fieldGoalPct || 'N/A'}%</strong></div>
+              <div style="color: var(--text-dim); font-size: 11px; margin-top: 4px;">${h.conference} #${h.conferenceRank}</div>
+            </div>
+          </div>
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; margin-bottom: 8px;">${a.name.toUpperCase()}</div>
+            <div style="font-size: 13px; line-height: 1.8;">
+              <div>Récord: <strong>${a.record}</strong></div>
+              <div>PPG: <strong>${a.pointsForPerGame || 'N/A'}</strong></div>
+              <div>FG%: <strong>${a.fieldGoalPct || 'N/A'}%</strong></div>
+              <div style="color: var(--text-dim); font-size: 11px; margin-top: 4px;">${a.conference} #${a.conferenceRank}</div>
+            </div>
+          </div>
+        </div>
+        ${apiData.h2h.length > 0 ? `
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; margin-bottom: 8px;">H2H ESTA TEMPORADA</div>
+            ${apiData.h2h.map(g => `
+              <div style="font-size: 12px; margin-bottom: 4px; font-family: 'JetBrains Mono', monospace;">
+                ${g.home} ${g.homeScore}-${g.awayScore} ${g.away} · <span style="color: var(--accent);">Total: ${g.total}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      `;
+    } else {
+      apiSection = `
+        <div style="background: rgba(255,180,84,0.1); border: 1px solid var(--warning); border-radius: 8px; padding: 10px; margin-bottom: 16px; font-size: 12px; color: var(--warning);">
+          ⚠️ API-NBA no respondió · Análisis basado solo en IA
+        </div>
+      `;
+    }
+
+    // Calcular Kelly
+    const kelly = calculateKelly(r.confidence);
+    const kellyHtml = bankroll > 0 ? `
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em;">💰 STAKE KELLY (25%)</div>
+          ${kelly.shouldBet 
+            ? `<div style="background: var(--accent); color: var(--bg); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace;">APOSTAR</div>` 
+            : `<div style="background: var(--danger); color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace;">SKIP</div>`
+          }
+        </div>
+        ${kelly.shouldBet ? `
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 22px; color: var(--accent); font-weight: 700;">$${kelly.stake.toFixed(2)}</div>
+          <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px; font-family: 'JetBrains Mono', monospace;">
+            ${kelly.pct.toFixed(1)}% del bankroll · Edge: ${kelly.edge.toFixed(1)}%
+          </div>
+        ` : `
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--danger); font-weight: 700;">No hay valor matemático</div>
+          <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">Edge calculado: ${kelly.edge.toFixed(1)}% (insuficiente)</div>
+        `}
+      </div>
+    ` : '';
+    
+    // Consistency Check: si confianza > 75% y H2H contradice
+    let consistencyWarning = '';
+    if (apiData && apiData.success && apiData.h2h && apiData.h2h.length >= 3 && r.confidence > 75) {
+      const lineNum = parseFloat(finalLine);
+      const overs = apiData.h2h.filter(g => g.total > lineNum).length;
+      const unders = apiData.h2h.filter(g => g.total < lineNum).length;
+      
+      if (r.pick === 'OVER' && unders > overs) {
+        consistencyWarning = `
+          <div style="background: rgba(255,180,84,0.15); border: 1px solid var(--warning); border-radius: 8px; padding: 10px; margin-top: 12px; font-size: 12px; color: var(--warning);">
+            ⚠️ <strong>Inconsistencia:</strong> Confianza ${r.confidence}% en OVER pero H2H reciente: ${unders}/${apiData.h2h.length} fueron UNDER. Considerá reducir stake.
+          </div>
+        `;
+      } else if (r.pick === 'UNDER' && overs > unders) {
+        consistencyWarning = `
+          <div style="background: rgba(255,180,84,0.15); border: 1px solid var(--warning); border-radius: 8px; padding: 10px; margin-top: 12px; font-size: 12px; color: var(--warning);">
+            ⚠️ <strong>Inconsistencia:</strong> Confianza ${r.confidence}% en UNDER pero H2H reciente: ${overs}/${apiData.h2h.length} fueron OVER. Considerá reducir stake.
+          </div>
+        `;
+      }
+    }
+
+    const html = `
+      <div class="verdict ${cls}" style="margin-top: 16px;">
+        <div class="verdict-pick">${home} vs ${away}</div>
+        <div class="verdict-line">${r.pick} ${finalLine}</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; letter-spacing: 0.1em; color: ${color};">${r.verdict}</div>
+        <div class="verdict-conf">Proyección: ${r.projected_total} pts · Confianza: ${r.confidence}%</div>
+        ${rangeInfo ? `<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); margin-top: 6px;">${rangeInfo}</div>` : ''}
+        <div class="confidence-bar">
+          <div class="confidence-fill" style="width: ${r.confidence}%; background: ${color};"></div>
+        </div>
+      </div>
+      
+      ${kellyHtml}
+      ${consistencyWarning}
+
+      ${apiSection}
+
+      <div class="analysis-title">Análisis</div>
+      <div class="analysis-text">${r.analysis}</div>
+
+      <div class="analysis-title">Factores Clave</div>
+      <div>
+        ${r.key_factors.map(f => `
+          <div class="factor-row">
+            <div class="factor-icon ${f.status}">${f.status === 'pass' ? '✓' : f.status === 'fail' ? '✗' : '!'}</div>
+            <div class="factor-text">${f.text}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    document.getElementById('resultContainer').innerHTML = html;
+    
+    // Actualizar Kelly también en el bankroll
+    updateKellyDisplay(r.confidence);
+  }
+
+  // ANÁLISIS DE PATRONES — descubre dónde estás perdiendo plata
+  function renderPatterns() {
+    const box = document.getElementById('patternsBox');
+    if (!box) return;
+    
+    const lostPicks = history.filter(h => h.result === 'lost' && h.categorias);
+    const wonPicks = history.filter(h => h.result === 'won' && h.categorias);
+    
+    if (lostPicks.length < 3) {
+      box.innerHTML = '';
+      return;
+    }
+    
+    // Contar categorías en pérdidas
+    const lossCounts = {};
+    const winCounts = {};
+    
+    lostPicks.forEach(p => {
+      Object.entries(p.categorias).forEach(([cat, val]) => {
+        if (val) lossCounts[cat] = (lossCounts[cat] || 0) + 1;
+      });
+    });
+    
+    wonPicks.forEach(p => {
+      Object.entries(p.categorias).forEach(([cat, val]) => {
+        if (val) winCounts[cat] = (winCounts[cat] || 0) + 1;
+      });
+    });
+    
+    const labels = {
+      lesion: '🏥 Estrella regresó',
+      motivacion: '🎯 Motivación',
+      pace: '⚡ Ritmo',
+      rotacion: '🔄 Rotación',
+      arbitraje: '⚖️ Arbitraje',
+      clutch: '🔥 Clutch',
+      linea: '📊 Línea movida'
+    };
+    
+    // Ordenar por frecuencia en pérdidas
+    const sorted = Object.entries(lossCounts).sort(([, a], [, b]) => b - a).slice(0, 5);
+    
+    if (sorted.length === 0) {
+      box.innerHTML = '';
+      return;
+    }
+    
+    const totalLost = lostPicks.length;
+    const items = sorted.map(([cat, count]) => {
+      const pct = Math.round((count / totalLost) * 100);
+      const wonInCat = winCounts[cat] || 0;
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--border);">
+          <span style="font-size: 13px;">${labels[cat] || cat}</span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">
+            <span style="color: var(--danger); font-weight: 700;">${count}L</span>
+            <span style="color: var(--text-dim);">/</span>
+            <span style="color: var(--accent);">${wonInCat}W</span>
+            <span style="color: var(--text-dim); margin-left: 6px;">(${pct}%)</span>
+          </span>
+        </div>
+      `;
+    }).join('');
+    
+    box.innerHTML = `
+      <div class="card" style="margin-bottom: 16px;">
+        <div class="section-label">📊 Patrones de tus pérdidas</div>
+        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 10px;">
+          Basado en ${lostPicks.length} pérdidas con notas
+        </div>
+        ${items}
+        <div style="font-size: 10px; color: var(--text-dim); margin-top: 10px; font-style: italic;">
+          💡 Las categorías arriba son donde más perdés. Considéralas en tus próximos picks.
+        </div>
+      </div>
+    `;
+  }
+
+  // HISTORY
+  function renderHistory() {
+    const list = document.getElementById('historyList');
+    const total = history.length;
+    const won = history.filter(h => h.result === 'won').length;
+    const lost = history.filter(h => h.result === 'lost').length;
+    const decided = won + lost;
+
+    document.getElementById('totalPicks').textContent = total;
+    document.getElementById('wonPicks').textContent = won;
+    document.getElementById('winRate').textContent = decided > 0 ? Math.round((won / decided) * 100) + '%' : '0%';
+    
+    // Renderizar análisis de patrones
+    renderPatterns();
+
+    // Últimos 10 decididos
+    const last10 = history.filter(h => h.result !== null).slice(0, 10);
+    const last10Won = last10.filter(h => h.result === 'won').length;
+    const last10El = document.getElementById('last10Rate');
+    if (last10El) {
+      if (last10.length > 0) {
+        const pct = Math.round((last10Won / last10.length) * 100);
+        last10El.textContent = `${last10Won}/${last10.length}`;
+        last10El.style.color = pct >= 60 ? 'var(--accent)' : pct >= 40 ? 'var(--warning)' : 'var(--danger)';
+      } else {
+        last10El.textContent = '—';
+        last10El.style.color = 'var(--text-dim)';
+      }
+    }
+
+    // Racha actual (desde el más reciente decidido)
+    const streakEl = document.getElementById('currentStreak');
+    if (streakEl) {
+      const decidedHistory = history.filter(h => h.result !== null);
+      if (decidedHistory.length > 0) {
+        const firstResult = decidedHistory[0].result;
+        let streak = 0;
+        for (const h of decidedHistory) {
+          if (h.result === firstResult) streak++;
+          else break;
+        }
+        streakEl.textContent = `${streak}${firstResult === 'won' ? 'W' : 'L'}`;
+        streakEl.style.color = firstResult === 'won' ? 'var(--accent)' : 'var(--danger)';
+      } else {
+        streakEl.textContent = '—';
+        streakEl.style.color = 'var(--text-dim)';
+      }
+    }
+
+    if (total === 0) {
+      list.innerHTML = '<div class="empty-state">Sin picks todavía</div>';
+      return;
+    }
+
+    // Categorías predefinidas para el diario
+    const categorias = [
+      { key: 'lesion', label: '🏥 Estrella regresó/lesión' },
+      { key: 'motivacion', label: '🎯 Motivación inesperada' },
+      { key: 'pace', label: '⚡ Ritmo más rápido/lento' },
+      { key: 'rotacion', label: '🔄 Rotación titulares' },
+      { key: 'arbitraje', label: '⚖️ Arbitraje (faltas)' },
+      { key: 'clutch', label: '🔥 Quarter clutch' },
+      { key: 'linea', label: '📊 Línea movida' }
+    ];
+    
+    list.innerHTML = history.map((h, i) => {
+      const isDecided = h.result !== null;
+      const showDiary = isDecided; // Solo mostrar diario en picks resueltos
+      const expanded = h.diaryOpen || false;
+      const cats = h.categorias || {};
+      const note = h.note || '';
+      
+      return `
+      <div class="history-item">
+        <div class="history-top">
+          <div class="history-teams">${h.matchup}</div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div class="history-badge ${h.confidence >= 75 ? 'win' : 'lose'}">${h.confidence}%</div>
+            <button class="delete-btn" data-action="delete" data-index="${i}" title="Eliminar pick">✕</button>
+          </div>
+        </div>
+        <div class="history-detail">${h.pick} ${h.line} · Proyección ${h.projected} · ${h.verdict}</div>
+        ${h.date ? `<div style="font-size: 10px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; margin-top: 4px;">${new Date(h.date).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>` : ''}
+        <div class="history-result">
+          ${h.result === null ? `
+            <span style="color: var(--text-dim);">Pendiente</span>
+            <div>
+              <button class="mini-btn win" data-action="won" data-index="${i}">GANÓ</button>
+              <button class="mini-btn lose" data-action="lost" data-index="${i}">PERDIÓ</button>
+            </div>
+          ` : `
+            <span class="history-badge ${h.result === 'won' ? 'win' : 'lose'}">${h.result === 'won' ? 'GANÓ' : 'PERDIÓ'}</span>
+            <button class="mini-btn" style="border-color: var(--text-dim); color: var(--text-dim);" data-action="clear" data-index="${i}">↺</button>
+          `}
+        </div>
+        
+        ${showDiary ? `
+          <div style="margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px;">
+            <button data-action="toggle-diary" data-index="${i}" style="background: none; border: none; color: var(--text-dim); font-size: 11px; padding: 0; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em; cursor: pointer;">
+              ${expanded ? '▼' : '▶'} 📓 DIARIO ${(note || Object.values(cats).some(v => v)) ? '●' : ''}
+            </button>
+            
+            ${expanded ? `
+              <div style="margin-top: 10px; background: var(--bg); border-radius: 6px; padding: 10px;">
+                <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 6px; letter-spacing: 0.1em;">¿QUÉ PASÓ?</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px;">
+                  ${categorias.map(c => `
+                    <button 
+                      data-action="toggle-cat" 
+                      data-index="${i}" 
+                      data-cat="${c.key}"
+                      style="background: ${cats[c.key] ? 'var(--accent)' : 'transparent'}; color: ${cats[c.key] ? 'var(--bg)' : 'var(--text-dim)'}; border: 1px solid ${cats[c.key] ? 'var(--accent)' : 'var(--border)'}; padding: 4px 8px; border-radius: 12px; font-size: 10px; cursor: pointer; font-family: inherit;"
+                    >${c.label}</button>
+                  `).join('')}
+                </div>
+                
+                <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px; letter-spacing: 0.1em;">NOTAS / LECCIÓN</div>
+                <textarea 
+                  data-action="save-note"
+                  data-index="${i}"
+                  placeholder="¿Qué aprendiste de este pick?"
+                  style="width: 100%; box-sizing: border-box; background: var(--bg-card); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 4px; font-size: 12px; font-family: inherit; resize: vertical; min-height: 60px;"
+                >${note}</textarea>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+    }).join('');
+  }
+
+  // EVENT DELEGATION - funciona mejor en mobile
+  document.getElementById('historyList').addEventListener('click', function(e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    
+    const action = btn.dataset.action;
+    const index = parseInt(btn.dataset.index);
+    
+    if (isNaN(index) || index < 0 || index >= history.length) {
+      console.error('Index inválido:', index);
+      return;
+    }
+    
+    try {
+      if (action === 'delete') {
+        if (confirm('¿Eliminar este pick del historial?')) {
+          history.splice(index, 1);
+          save('history', history);
+          renderHistory();
+        }
+      } else if (action === 'won') {
+        history[index].result = 'won';
+        save('history', history);
+        updateLessonsFromResult(history[index]);
+        renderHistory();
+        renderLessons();
+      } else if (action === 'lost') {
+        history[index].result = 'lost';
+        save('history', history);
+        updateLessonsFromResult(history[index]);
+        renderHistory();
+        renderLessons();
+      } else if (action === 'clear') {
+        history[index].result = null;
+        save('history', history);
+        renderHistory();
+      } else if (action === 'toggle-diary') {
+        history[index].diaryOpen = !history[index].diaryOpen;
+        renderHistory();
+      } else if (action === 'toggle-cat') {
+        const cat = btn.dataset.cat;
+        if (!history[index].categorias) history[index].categorias = {};
+        history[index].categorias[cat] = !history[index].categorias[cat];
+        save('history', history);
+        renderHistory();
+        renderPatterns(); // actualizar análisis de patrones
+      }
+    } catch(err) {
+      console.error('Error en acción', action, err);
+      alert('Error: ' + err.message);
+    }
+  });
+  
+  // Guardar nota cuando el usuario tipea (con debounce)
+  let noteTimeout = null;
+  document.getElementById('historyList').addEventListener('input', function(e) {
+    if (e.target.dataset.action !== 'save-note') return;
+    const index = parseInt(e.target.dataset.index);
+    if (isNaN(index)) return;
+    
+    clearTimeout(noteTimeout);
+    noteTimeout = setTimeout(() => {
+      history[index].note = e.target.value;
+      save('history', history);
+    }, 500);
+  });
+
+  window.deletePick = function(index) {
+    try {
+      if (confirm('¿Eliminar este pick del historial?')) {
+        history.splice(index, 1);
+        save('history', history);
+        renderHistory();
+      }
+    } catch(e) {
+      console.error('Error en deletePick:', e);
+      alert('Error eliminando: ' + e.message);
+    }
+  };
+
+  window.markResult = function(index, result) {
+    try {
+      history[index].result = result;
+      save('history', history);
+      updateLessonsFromResult(history[index]);
+      renderHistory();
+      renderLessons();
+    } catch(e) {
+      console.error('Error en markResult:', e);
+      alert('Error marcando: ' + e.message);
+    }
+  };
+
+  window.clearResult = function(index) {
+    try {
+      history[index].result = null;
+      save('history', history);
+      renderHistory();
+    } catch(e) {
+      console.error('Error en clearResult:', e);
+    }
+  };
+
+  // LECCIONES — Sistema que aprende (sin async)
+  function updateLessonsFromResult(item) {
+    const won = item.result === 'won';
+    
+    if (!item.factors || !Array.isArray(item.factors)) return;
+    
+    item.factors.forEach(factor => {
+      lessons.forEach(lesson => {
+        const related = 
+          (lesson.text.toLowerCase().includes('línea') && factor.text.toLowerCase().includes('línea')) ||
+          (lesson.text.toLowerCase().includes('estrella') && factor.text.toLowerCase().includes('estrella')) ||
+          (lesson.text.toLowerCase().includes('motivación') && factor.text.toLowerCase().includes('motivación')) ||
+          (lesson.text.toLowerCase().includes('margen') && factor.text.toLowerCase().includes('margen')) ||
+          (lesson.text.toLowerCase().includes('rotación') && factor.text.toLowerCase().includes('rotación'));
+        
+        if (related) {
+          if (factor.status === 'fail' && !won) lesson.weight = Math.min(lesson.weight + 3, 40);
+          if (factor.status === 'pass' && won) lesson.weight = Math.min(lesson.weight + 2, 40);
+          if (factor.status === 'pass' && !won) lesson.weight = Math.max(lesson.weight - 2, 5);
+        }
+      });
+    });
+    
+    if (!won && item.factors.length > 0) {
+      const failFactor = item.factors.find(f => f.status === 'fail');
+      if (failFactor) {
+        const exists = lessons.some(l => l.text.toLowerCase().includes(failFactor.text.toLowerCase().substring(0, 20)));
+        if (!exists && lessons.length < 15) {
+          lessons.push({
+            id: Date.now(),
+            text: `Evitar: ${failFactor.text}`,
+            weight: 15,
+            source: `Perdido: ${item.matchup}`
+          });
+        }
+      }
+    }
+    
+    save('lessons', lessons);
+  }
+
+  function renderLessons() {
+    const list = document.getElementById('lessonsList');
+    const sorted = [...lessons].sort((a, b) => b.weight - a.weight);
+    list.innerHTML = sorted.map((l, i) => `
+      <div class="lesson-item">
+        <div class="lesson-num">${String(i+1).padStart(2, '0')}</div>
+        <div>
+          <div class="lesson-text">${l.text}</div>
+          <div class="lesson-meta">Peso: ${l.weight} · ${l.source}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const resetBtn = document.getElementById('resetBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function() {
+      try {
+        const ok = confirm('¿Borrar todo el historial? Esta acción no se puede deshacer.');
+        if (ok) {
+          history = [];
+          save('history', history);
+          renderHistory();
+          alert('Historial borrado');
+        }
+      } catch(e) {
+        console.error('Error en reset:', e);
+        alert('Error: ' + e.message);
+      }
+    });
+  }
+
+  loadData();
+</script>
+</body>
+</html>
