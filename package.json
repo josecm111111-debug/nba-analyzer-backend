@@ -1,6 +1,7 @@
 {
   "name": "nba-analyzer-backend",
-  "version": "1.0.0",
+  "version": "4.0.0",
+  "description": "Backend NBA con Balldontlie.io",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -11,6 +12,6 @@
     "axios": "^1.6.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "20.x"
   }
 }
